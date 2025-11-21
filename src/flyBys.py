@@ -7,38 +7,37 @@ spice.furnsh('C:\\Users\\elean\\OneDrive - Harvey Mudd College\\Documents\\Space
 print("Loaded kernels:", spice.ktotal('ALL'))
 
 # times / dates
-utc_start = "Oct 22, 2018"
+utc_start = "Oct 22, 2018"  #actually is the 20th but gave it leeway
 utc_end   = "Mar 27, 2025"
 et_start = spice.str2et(utc_start)
 et_end   = spice.str2et(utc_end)
 
-times = np.arange(et_start, et_end, 2e5)   # coarse 200,000 s (~2.3 days)
+times = np.arange(et_start, et_end, 2e5)   # 200,000 seconds
 
 # spacecraft and planet IDs
-spacecraft_id = "-121"
+spacecraft_id = "-121" # from SPICE ID list
 planets = {"Mercury": "199", "Venus": "299", "Earth": "399"}
 
 # sun positions
-pos_sc_sun, _ = spice.spkpos(spacecraft_id, times, 'J2000', 'NONE', '10')
-pos_sc_sun = np.array(pos_sc_sun)
+pos_sun, _ = spice.spkpos(spacecraft_id, times, 'J2000', 'NONE', '10')
+pos_sun = np.array(pos_sun)
 
 planet_positions = {}
-for planet, pid in planets.items():
-    pos, _ = spice.spkpos(pid, times, 'J2000', 'NONE', '10')
+for planet, p in planets.items():
+    pos, _ = spice.spkpos(p, times, 'J2000', 'NONE', '10')
     planet_positions[planet] = np.array(pos)
 
 # distance to planets
 distances = {}
-for planet, pos in planet_positions.items():
-    distances[planet] = np.linalg.norm(pos_sc_sun - pos, axis=1)
+for planet, position in planet_positions.items():
+    distances[planet] = np.linalg.norm(pos_sun - position, axis=1)
 
 # find flybys
-howClose = 500000   # km threshold
+howClose = 500000   # km and done by trial by error to get the right number for each planet
 flyby_intervals = {planet: [] for planet in planets}
 
 for planet, dist_array in distances.items():
     in_flyby = False
-    start_idx = None
 
     for i in range(len(dist_array)):
         if not in_flyby and dist_array[i] < howClose:
@@ -53,15 +52,15 @@ for planet, dist_array in distances.items():
     if in_flyby:
         flyby_intervals[planet].append((start_idx, len(dist_array)-1))
 
-# find index for flybys
+# find index for flybys to plot
 flyby_CA = {planet: [] for planet in planets}
 
 for planet, intervals in flyby_intervals.items():
     for (i0, i1) in intervals:
         segment = distances[planet][i0:i1]
         min_rel_idx = np.argmin(segment)
-        ca_idx = i0 + min_rel_idx
-        flyby_CA[planet].append(ca_idx)
+        fb_idx = i0 + min_rel_idx
+        flyby_CA[planet].append(fb_idx)
 
 # plot flybys
 for planet, intervals in flyby_intervals.items():
@@ -80,20 +79,20 @@ for planet, intervals in flyby_intervals.items():
         t_fine = np.arange(et_ca - window, et_ca + window, dt)
 
         # High-res planet-centered distance
-        sc_pos, _ = spice.spkpos(spacecraft_id, t_fine, 'J2000', 'NONE', pid)
+        bepi_pos, _ = spice.spkpos(spacecraft_id, t_fine, 'J2000', 'NONE', pid)
         pl_pos, _ = spice.spkpos(pid, t_fine, 'J2000', 'NONE', '10')
 
-        sc_pos = np.array(sc_pos)
+        bepi_pos = np.array(bepi_pos)
         pl_pos = np.array(pl_pos)
 
-        d_fine = np.linalg.norm(sc_pos - pl_pos, axis=1)
+        d_fine = np.linalg.norm(bepi_pos - pl_pos, axis=1)
 
-        # Relative time (days)
+        # time (days) is apparantly time (seconds) / 86400
         t_rel_days = (t_fine - et_ca) / 86400.0
 
         # Print flyby info
-        ca_dist = np.min(d_fine)
-        print(f"Flyby at {spice.et2utc(et_ca, 'C', 3)}  |  {ca_dist:.1f} km")
+        fb_dist = np.min(d_fine)
+        print(f"Flyby at {spice.et2utc(et_ca, 'C', 3)}  |  {fb_dist:.1f} km")
 
         # Plot 
         plt.figure(figsize=(8,4))
