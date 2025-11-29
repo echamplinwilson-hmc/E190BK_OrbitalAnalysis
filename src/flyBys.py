@@ -2,108 +2,132 @@ import spiceypy as spice
 import numpy as np
 import matplotlib.pyplot as plt
 
-# load kernels
-spice.furnsh('C:\\Users\\elean\\OneDrive - Harvey Mudd College\\Documents\\Spacecraft\\data\\bepiMeta.tm')
+# -------------------------------------------------------------
+# Load kernels
+# -------------------------------------------------------------
+spice.furnsh(r"C:\Users\elean\OneDrive - Harvey Mudd College\Documents\Spacecraft\data\bepiMeta.tm")
 print("Loaded kernels:", spice.ktotal('ALL'))
 
-# times / dates
-utc_start = "Oct 22, 2018"  #actually is the 20th but gave it leeway
-utc_end   = "Mar 27, 2025"
-et_start = spice.str2et(utc_start)
-et_end   = spice.str2et(utc_end)
+# -------------------------------------------------------------
+# Time setup
+# -------------------------------------------------------------
+utc_start = "Oct 22 2018"
+utc_end   = "Mar 27 2025"
 
-times = np.arange(et_start, et_end, 2e5)   # 200,000 seconds
+t0 = spice.str2et(utc_start)
+t1 = spice.str2et(utc_end)
+times = np.arange(t0, t1, 2e5)     # ~2.3 days resolution
 
-# spacecraft and planet IDs
-spacecraft_id = "-121" # from SPICE ID list
-planets = {"Mercury": "199", "Venus": "299", "Earth": "399"}
+planets = {
+    "Mercury": "199",
+    "Venus":   "299",
+    "Earth":   "399"
+}
+colors = {
+    "Mercury": "orange",
+    "Venus":   "green",
+    "Earth":   "blue"
+}
+sc_id = "-121"
 
-# sun positions
-pos_sun, _ = spice.spkpos(spacecraft_id, times, 'J2000', 'NONE', '10')
-pos_sun = np.array(pos_sun)
+# -------------------------------------------------------------
+# Get positions relative to Sun
+# -------------------------------------------------------------
+pos_sc, _ = spice.spkpos(sc_id, times, "J2000", "NONE", "10")
+pos_sc = np.array(pos_sc)
 
-planet_positions = {}
-for planet, p in planets.items():
-    pos, _ = spice.spkpos(p, times, 'J2000', 'NONE', '10')
-    planet_positions[planet] = np.array(pos)
+positions = {}
+for name, pid in planets.items():
+    pos, _ = spice.spkpos(pid, times, "J2000", "NONE", "10")
+    positions[name] = np.array(pos)
 
-# distance to planets
-distances = {}
-for planet, position in planet_positions.items():
-    distances[planet] = np.linalg.norm(pos_sun - position, axis=1)
+# compute distances
+distances = {name: np.linalg.norm(pos_sc - positions[name], axis=1)
+             for name in planets}
 
-# find flybys
-howClose = 500000   # km and done by trial by error to get the right number for each planet
-flyby_intervals = {planet: [] for planet in planets}
+utc = np.array([spice.et2utc(t, 'C', 0) for t in times])
 
-for planet, dist_array in distances.items():
-    in_flyby = False
+# -------------------------------------------------------------
+# Flyby detection settings
+# -------------------------------------------------------------
+thresholds = {
+    "Mercury": 2.0e7,
+    "Venus":   1.0e7,
+    "Earth":   1.0e6        
+}
 
-    for i in range(len(dist_array)):
-        if not in_flyby and dist_array[i] < howClose:
-            in_flyby = True
-            start_idx = i
-        
-        if in_flyby and dist_array[i] >= howClose:
-            in_flyby = False
-            end_idx = i
-            flyby_intervals[planet].append((start_idx, end_idx))
+min_under_duration   = 3 * 24 * 3600     # must stay under threshold ≥ 3 days
+min_flyby_separation = 30 * 24 * 3600    # flybys must be ≥ 30 days apart
 
-    if in_flyby:
-        flyby_intervals[planet].append((start_idx, len(dist_array)-1))
+flybys = {}
 
-# find index for flybys to plot
-flyby_CA = {planet: [] for planet in planets}
+# -------------------------------------------------------------
+# Find flyby candidates
+# -------------------------------------------------------------
+for planet in planets:
+    d = distances[planet]
+    th = thresholds[planet]
 
-for planet, intervals in flyby_intervals.items():
-    for (i0, i1) in intervals:
-        segment = distances[planet][i0:i1]
-        min_rel_idx = np.argmin(segment)
-        fb_idx = i0 + min_rel_idx
-        flyby_CA[planet].append(fb_idx)
+    mask = d < th
+    events = []
+    in_event = False
+    start = 0
 
-# plot flybys
-for planet, intervals in flyby_intervals.items():
-    print(f"\n=== {planet} Flybys ===")
+    for i, flag in enumerate(mask):
+        if flag and not in_event:
+            in_event = True
+            start = i
 
-    pid = planets[planet]
+        if in_event and (not flag or i == len(mask) - 1):
+            end = i
+            duration = times[end] - times[start]
+            if duration > min_under_duration:
+                idx = start + np.argmin(d[start:end])
+                events.append(idx)
+            in_event = False
 
-    for (i0, i1), ca_idx in zip(intervals, flyby_CA[planet]):
+    # merge events that are too close in time
+    merged = []
+    for idx in events:
+        if not merged:
+            merged.append(idx)
+        elif times[idx] - times[merged[-1]] > min_flyby_separation:
+            merged.append(idx)
 
-        et_ca = times[ca_idx]
+    flybys[planet] = merged
 
-        # better sampling for up close 
-        window = 5 * 86400      # 5 days
-        dt = 1000               # 17 mins
+# -------------------------------------------------------------
+# Print results
+# -------------------------------------------------------------
+print("\n============================")
+print("Detected Flybys")
+print("============================")
 
-        t_fine = np.arange(et_ca - window, et_ca + window, dt)
+for planet, idxs in flybys.items():
+    print(f"\n{planet} = {len(idxs)} flybys")
+    for idx in idxs:
+        print(f"   {utc[idx]}   {distances[planet][idx]/1000:,.0f} km")
 
-        # High-res planet-centered distance
-        bepi_pos, _ = spice.spkpos(spacecraft_id, t_fine, 'J2000', 'NONE', pid)
-        pl_pos, _ = spice.spkpos(pid, t_fine, 'J2000', 'NONE', '10')
+# -------------------------------------------------------------
+# Plot zoomed windows for each flyby
+# -------------------------------------------------------------
+window = 5 * 24 * 3600
 
-        bepi_pos = np.array(bepi_pos)
-        pl_pos = np.array(pl_pos)
+for planet, idxs in flybys.items():
+    d = distances[planet]
+    for j, ci in enumerate(idxs):
+        tmin = times[ci] - window
+        tmax = times[ci] + window
 
-        d_fine = np.linalg.norm(bepi_pos - pl_pos, axis=1)
+        sel = (times >= tmin) & (times <= tmax)
 
-        # time (days) is apparantly time (seconds) / 86400
-        t_rel_days = (t_fine - et_ca) / 86400.0
-
-        # Print flyby info
-        fb_dist = np.min(d_fine)
-        print(f"Flyby at {spice.et2utc(et_ca, 'C', 3)}  |  {fb_dist:.1f} km")
-
-        # Plot 
         plt.figure(figsize=(8,4))
-        plt.plot(t_rel_days, d_fine, label="Distance (km)")
-        plt.axvline(0, color='red', linestyle='--', label="Closest Approach")
-
-        plt.title(f"{planet} Flyby — Distance vs Time\nFlyby: {spice.et2utc(et_ca, 'C', 3)}")
-        plt.xlabel("Time relative to Flyby (days)")
-        plt.ylabel("Distance (km)")
-        plt.grid(True)
-        plt.legend()
+        plt.plot(utc[sel], d[sel]/1e6, color=colors[planet])
+        plt.scatter([utc[ci]], [d[ci]/1e6], c='red', s=60)
+        plt.title(f"{planet} Flyby #{j+1}\nClosest = {utc[ci]}")
+        plt.ylabel("Distance (million km)")
+        plt.xticks(rotation=25)
+        plt.grid()
         plt.tight_layout()
         plt.show()
 
