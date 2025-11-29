@@ -111,6 +111,5 @@ def update(frame):
 # animation go
 ani = FuncAnimation(fig3d, update, frames=len(times), interval=50, blit=True)
 
-# Show / end
 plt.show()
 spice.kclear()

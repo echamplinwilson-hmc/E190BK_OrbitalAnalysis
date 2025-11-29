@@ -2,22 +2,19 @@ import spiceypy as spice
 import numpy as np
 import matplotlib.pyplot as plt
 
-# -------------------------------------------------------------
 # Load kernels
-# -------------------------------------------------------------
 spice.furnsh(r"C:\Users\elean\OneDrive - Harvey Mudd College\Documents\Spacecraft\data\bepiMeta.tm")
 print("Loaded kernels:", spice.ktotal('ALL'))
 
-# -------------------------------------------------------------
-# Time setup
-# -------------------------------------------------------------
+# Times
 utc_start = "Oct 22 2018"
 utc_end   = "Mar 27 2025"
 
 t0 = spice.str2et(utc_start)
 t1 = spice.str2et(utc_end)
-times = np.arange(t0, t1, 2e5)     # ~2.3 days resolution
+times = np.arange(t0, t1, 2e5)     # ~2.3 days resolution or too slow rn
 
+# IDs
 planets = {
     "Mercury": "199",
     "Venus":   "299",
@@ -30,9 +27,7 @@ colors = {
 }
 sc_id = "-121"
 
-# -------------------------------------------------------------
-# Get positions relative to Sun
-# -------------------------------------------------------------
+# Get positions to Sun
 pos_sc, _ = spice.spkpos(sc_id, times, "J2000", "NONE", "10")
 pos_sc = np.array(pos_sc)
 
@@ -47,9 +42,7 @@ distances = {name: np.linalg.norm(pos_sc - positions[name], axis=1)
 
 utc = np.array([spice.et2utc(t, 'C', 0) for t in times])
 
-# -------------------------------------------------------------
-# Flyby detection settings
-# -------------------------------------------------------------
+# Flyby detectioning
 thresholds = {
     "Mercury": 2.0e7,
     "Venus":   1.0e7,
@@ -61,9 +54,7 @@ min_flyby_separation = 30 * 24 * 3600    # flybys must be ≥ 30 days apart
 
 flybys = {}
 
-# -------------------------------------------------------------
-# Find flyby candidates
-# -------------------------------------------------------------
+# Find flybys
 for planet in planets:
     d = distances[planet]
     th = thresholds[planet]
@@ -86,7 +77,7 @@ for planet in planets:
                 events.append(idx)
             in_event = False
 
-    # merge events that are too close in time
+    # merge events that are too close in time --> end of mercury timing
     merged = []
     for idx in events:
         if not merged:
@@ -96,9 +87,7 @@ for planet in planets:
 
     flybys[planet] = merged
 
-# -------------------------------------------------------------
-# Print results
-# -------------------------------------------------------------
+# results
 print("\n============================")
 print("Detected Flybys")
 print("============================")
@@ -108,9 +97,7 @@ for planet, idxs in flybys.items():
     for idx in idxs:
         print(f"   {utc[idx]}   {distances[planet][idx]/1000:,.0f} km")
 
-# -------------------------------------------------------------
-# Plot zoomed windows for each flyby
-# -------------------------------------------------------------
+# Plots
 window = 5 * 24 * 3600
 
 for planet, idxs in flybys.items():

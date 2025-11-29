@@ -4,21 +4,21 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from datetime import datetime, timedelta
 
-# -------------------- Load SPICE kernels --------------------
+# kernels --> note to self the second 2 dont work for some reason in the meta but fine here whatevs
 spice.furnsh(r'C:\Users\elean\OneDrive - Harvey Mudd College\Documents\Spacecraft\data\bepiMeta.tm')
 ck_file = r'C:\Users\elean\OneDrive - Harvey Mudd College\Documents\Spacecraft\naif_spice\bepi_kernels\ck\bc_mpo_sc_fsp_00208_20181020_20270328_f20181127_v10.bc'
 sclk_file = r'C:\Users\elean\OneDrive - Harvey Mudd College\Documents\Spacecraft\naif_spice\bepi_kernels\sclk\bc_mpo_step_20181020.tsc'
 spice.furnsh(ck_file)
 spice.furnsh(sclk_file)
 
-# -------------------- Parameters --------------------
+# parameters
 MOI_DATE = "2026-11-26"
 et_moi = spice.str2et(MOI_DATE)
 
-# -------------------- Pre-MOI --------------------
+# pre-moi
 et_start_pre = spice.str2et("2026-10-01")
 et_end_pre   = spice.str2et("2026-11-25")
-STEP_PRE = 3600  # 1 hour
+STEP_PRE = 3600  # 1 hour (can change later about resolution)
 
 times_pre = np.arange(et_start_pre, et_end_pre, STEP_PRE)
 pos_pre_km, _ = spice.spkpos("-121", times_pre, "J2000", "NONE", "199")
@@ -27,7 +27,7 @@ r_pre = np.linalg.norm(pos_pre, axis=1)
 r_pre = np.maximum(r_pre, 1e-3)
 dates_pre = [datetime(2000,1,1) + timedelta(seconds=(t-spice.str2et("2000-01-01T00:00:00"))) for t in times_pre]
 
-# -------------------- Post-MOI --------------------
+# after moi
 STEP_POST = 600  # 10 min
 POST_MOI_DURATION_DAYS = 30
 POST_MOI_DURATION = POST_MOI_DURATION_DAYS * 24 * 3600
@@ -44,10 +44,10 @@ dates_post = [datetime(2000,1,1) + timedelta(seconds=(t-spice.str2et("2000-01-01
 peri_idx = np.argmin(r_post)
 apo_idx = np.argmax(r_post)
 
-# -------------------- Figure --------------------
+# figure
 fig = plt.figure(figsize=(12,10))
 
-# Top panel: 2D distance with log scale
+# 2D distance with log scale
 ax1 = fig.add_subplot(211)
 ax1.plot(dates_pre, r_pre, color='blue', label='Distance Pre-MOI (Approach)')
 ax1.plot(dates_post, r_post, color='green', label='Distance Post-MOI (Orbit)')
@@ -56,22 +56,20 @@ ax1.scatter(dates_post[peri_idx], r_post[peri_idx], color='red', s=60, label='Pe
 ax1.scatter(dates_post[apo_idx], r_post[apo_idx], color='orange', s=60, label='Apoapsis')
 ax1.set_xlabel('Date')
 ax1.set_ylabel('Distance from Mercury [km]')
-ax1.set_yscale('log')
+ax1.set_yscale('log')  # changed to log scale cause huge range 
 ax1.set_title('MPO Distance from Mercury: Approach and Orbit (Log Scale)')
 ax1.grid(True, which="both", ls="--")
 ax1.legend()
 
-# Bottom panel: 3D orbit
+# 3D orbit animation
 from mpl_toolkits.mplot3d import Axes3D
 ax2 = fig.add_subplot(212, projection='3d')
 line, = ax2.plot([], [], [], color='blue', label='MPO orbit')
 point, = ax2.plot([], [], [], 'ro', label='MPO Current Position')
 
-# Periapsis / Apoapsis
+# Periapsis
 ax2.scatter(pos_post[peri_idx,0], pos_post[peri_idx,1], pos_post[peri_idx,2],
             color='red', s=80, label='Periapsis')
-ax2.scatter(pos_post[apo_idx,0], pos_post[apo_idx,1], pos_post[apo_idx,2],
-            color='orange', s=80, label='Apoapsis')
 
 # Mercury
 ax2.scatter(0,0,0,color='orange', s=200,label='Mercury')
@@ -99,5 +97,4 @@ ani = FuncAnimation(fig, update, frames=len(times_post), interval=50, blit=True)
 plt.tight_layout()
 plt.show()
 
-# -------------------- Clear SPICE --------------------
 spice.kclear()

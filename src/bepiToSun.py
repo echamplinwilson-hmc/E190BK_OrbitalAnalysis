@@ -2,13 +2,14 @@ import spiceypy as spice
 import numpy as np
 import matplotlib.pyplot as plt
 
-
+# kernels
 spice.furnsh('C:\\Users\\elean\\OneDrive - Harvey Mudd College\\Documents\\Spacecraft\\data\\bepiMeta.tm')
 ids = spice.spkobj("naif_spice\\cassini_kernels\\spk\\bc_mpo_fcp_00206_20181020_20270407_v02.bsp")
 print(ids)
 print(list(ids))
 print(spice.ktotal('ALL'))
 
+# times 
 utc_start = "Oct 22, 2018"
 utc_end   = "Mar 27, 2025"
 et_start = spice.str2et(utc_start)

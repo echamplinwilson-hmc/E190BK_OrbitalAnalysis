@@ -5,14 +5,14 @@ from dataclasses import dataclass
 from datetime import datetime
 import matplotlib.dates as mdates
 
-# -------------------- SPICE kernels --------------------
+# kernels --> note to self the second 2 dont work for some reason in the meta but fine here whatevs
 spice.furnsh(r'C:\Users\elean\OneDrive - Harvey Mudd College\Documents\Spacecraft\data\bepiMeta.tm')
 ck_file = r'C:\Users\elean\OneDrive - Harvey Mudd College\Documents\Spacecraft\naif_spice\bepi_kernels\ck\bc_mpo_sc_fsp_00208_20181020_20270328_f20181127_v10.bc'
 sclk_file = r'C:\Users\elean\OneDrive - Harvey Mudd College\Documents\Spacecraft\naif_spice\bepi_kernels\sclk\bc_mpo_step_20181020.tsc'
 spice.furnsh(ck_file)
 spice.furnsh(sclk_file)
 
-# -------------------- Constants --------------------
+# constants (up to change if better info found)
 STEP = 86400  # 1 day integration
 GM = 2.2032e13
 g0 = 9.80665
@@ -26,13 +26,13 @@ ION_COUNT = 4
 ION_THRUST = 0.145
 ION_ISP = 4300
 LEVER_ION = 1.0
-DT_CRUISE = 24*3600  # 1 day desats
+DT_CRUISE = 24*3600  # 1 day desats presumed
 
 CHEM_BOOSTER_PROP_USED = 300.0  # kg
 
 SC_ID = "-121"
 
-# -------------------- Utilities --------------------
+# utilities
 def box_I(m,d):
     x,y,z=d
     return np.diag([(1/12)*m*(y*y+z*z),
@@ -80,7 +80,7 @@ class ThrusterGroup:
 
 ION_GROUP = ThrusterGroup(ION_THRUST,ION_ISP,ION_COUNT,LEVER_ION)
 
-# -------------------- SPK positions --------------------
+# positions
 times_full = np.arange(spice.str2et("2026-09-15"), spice.str2et("2026-12-15")+STEP, STEP)
 pos_sc_mer_km,_ = spice.spkpos(SC_ID, times_full,"J2000","NONE","199")
 pos_mer_sun_km,_ = spice.spkpos("199", times_full,"J2000","NONE","10")
@@ -88,7 +88,7 @@ pos_sc_mer = np.array(pos_sc_mer_km)*1000
 pos_mer_sun = np.array(pos_mer_sun_km)*1000
 pos_sc_sun = pos_sc_mer + pos_mer_sun
 
-# -------------------- Precompute torques for all times --------------------
+# torque arrays
 torque_precompute_MCS = np.zeros((len(times_full),3))
 for i,t in enumerate(times_full):
     r_body = to_body_frame(pos_sc_mer[i], t)
@@ -103,7 +103,7 @@ for i,t in enumerate(times_full):
     I = box_I(mass_MPO,dims_MPO)
     torque_precompute_MPO[i] = gg_torque(r_body,I) + srp_torque(s_body,t)
 
-# -------------------- Simulation --------------------
+# simulation function
 def simulate_sep_moi_fast(sep_et, moi_et):
     idx_start = np.searchsorted(times_full, sep_et - STEP)
     idx_end = np.searchsorted(times_full, moi_et + STEP)
@@ -116,7 +116,7 @@ def simulate_sep_moi_fast(sep_et, moi_et):
     for idx in range(idx_start, idx_end):
         t = times_full[idx]
 
-        # Switch inertia at separation
+        # new interia with less fuel
         torque = torque_precompute_MCS[idx]
         if (not sep_done) and t >= sep_et:
             sep_done = True
@@ -139,7 +139,7 @@ def simulate_sep_moi_fast(sep_et, moi_et):
     total_fuel = total_ion_used + CHEM_BOOSTER_PROP_USED
     return total_fuel
 
-# -------------------- Adaptive sweep --------------------
+# sweep function (made adaptive)
 def adaptive_sweep_fast(sep_start, sep_end, moi_start, moi_end, step_days=1, expansions=2):
     step_sec = step_days*86400
     for exp in range(expansions+1):
@@ -156,9 +156,9 @@ def adaptive_sweep_fast(sep_start, sep_end, moi_start, moi_end, step_days=1, exp
 
         min_idx = np.unravel_index(np.nanargmin(fuel_grid), fuel_grid.shape)
         if 0 < min_idx[0] < len(sep_dates)-1 and 0 < min_idx[1] < len(moi_dates)-1:
-            # Minimum inside grid
+            # get minimum not on edge (not possible discuss)
             break
-        # Expand edges if minimum on edge
+        # Expand edges if minimum on edge (not possible discuss)
         sep_start -= step_sec
         sep_end += step_sec
         moi_start -= step_sec
@@ -169,7 +169,7 @@ def adaptive_sweep_fast(sep_start, sep_end, moi_start, moi_end, step_days=1, exp
     min_fuel = fuel_grid[min_idx]
     return fuel_grid, sep_dates, moi_dates, opt_sep, opt_moi, min_fuel
 
-# -------------------- Run fast adaptive sweep --------------------
+# run adaptive sweep
 fuel_grid, sep_dates, moi_dates, opt_sep, opt_moi, min_fuel = adaptive_sweep_fast(
     spice.str2et("2026-09-25"),
     spice.str2et("2026-10-05"),
@@ -179,7 +179,7 @@ fuel_grid, sep_dates, moi_dates, opt_sep, opt_moi, min_fuel = adaptive_sweep_fas
     expansions=2
 )
 
-# -------------------- Plot --------------------
+# plot
 def et_to_datetime(et):
     utc = spice.et2utc(et,'ISOC',0)
     return datetime.strptime(utc.split('T')[0], "%Y-%m-%d")
@@ -201,7 +201,7 @@ plt.gca().yaxis_date()
 plt.gcf().autofmt_xdate()
 plt.show()
 
-# -------------------- Print optimal --------------------
+# print
 print("Optimal separation ET:", spice.et2utc(opt_sep,'C',0))
 print("Optimal MOI ET:", spice.et2utc(opt_moi,'C',0))
 print("Minimum total fuel [kg]:", min_fuel)
