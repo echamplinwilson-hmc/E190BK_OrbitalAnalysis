@@ -19,7 +19,7 @@ g0 = 9.80665
 
 mass_MCS = 4100.0
 mass_MPO = 1150.0
-dims_MCS = [3.5,2.5,3.0]
+dims_MCS = [3.9,3.6,6.3]  # approximate overall dimensions [m]
 dims_MPO = [2.4,2.2,1.7]
 
 ION_COUNT = 4
