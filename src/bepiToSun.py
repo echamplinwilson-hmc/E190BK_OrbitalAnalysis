@@ -4,10 +4,12 @@ import matplotlib.pyplot as plt
 
 # kernels
 spice.furnsh('C:\\Users\\elean\\OneDrive - Harvey Mudd College\\Documents\\Spacecraft\\data\\bepiMeta.tm')
-ids = spice.spkobj("naif_spice\\cassini_kernels\\spk\\bc_mpo_fcp_00206_20181020_20270407_v02.bsp")
-print(ids)
-print(list(ids))
-print(spice.ktotal('ALL'))
+
+# used to find id of BepiColombo --> -121
+#ids = spice.spkobj("naif_spice\\cassini_kernels\\spk\\bc_mpo_fcp_00206_20181020_20270407_v02.bsp")
+#print(ids)
+#print(list(ids))
+#print(spice.ktotal('ALL'))
 
 # times 
 utc_start = "Oct 22, 2018"

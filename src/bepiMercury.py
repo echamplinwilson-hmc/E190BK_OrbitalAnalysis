@@ -12,12 +12,12 @@ spice.furnsh(ck_file)
 spice.furnsh(sclk_file)
 
 # parameters
-MOI_DATE = "2026-11-26"
+MOI_DATE = "2026-11-21"
 et_moi = spice.str2et(MOI_DATE)
 
 # pre-moi
 et_start_pre = spice.str2et("2026-10-01")
-et_end_pre   = spice.str2et("2026-11-25")
+et_end_pre   = spice.str2et("2026-11-21")
 STEP_PRE = 3600  # 1 hour (can change later about resolution)
 
 times_pre = np.arange(et_start_pre, et_end_pre, STEP_PRE)
@@ -51,8 +51,8 @@ fig = plt.figure(figsize=(12,10))
 ax1 = fig.add_subplot(211)
 ax1.plot(dates_pre, r_pre, color='blue', label='Distance Pre-MOI (Approach)')
 ax1.plot(dates_post, r_post, color='green', label='Distance Post-MOI (Orbit)')
-ax1.axvline(datetime(2026,11,26), color='red', linestyle='--', label='MOI')
-ax1.scatter(dates_post[peri_idx], r_post[peri_idx], color='red', s=60, label='Periapsis')
+ax1.axvline(datetime(2026,10,26), color='black', linestyle='--', label='MOS')
+ax1.axvline(datetime(2026,11,21), color='red', linestyle='--', label='MOI')
 ax1.scatter(dates_post[apo_idx], r_post[apo_idx], color='orange', s=60, label='Apoapsis')
 ax1.set_xlabel('Date')
 ax1.set_ylabel('Distance from Mercury [km]')
@@ -61,9 +61,11 @@ ax1.set_title('MPO Distance from Mercury: Approach and Orbit (Log Scale)')
 ax1.grid(True, which="both", ls="--")
 ax1.legend()
 
+
 # 3D orbit animation
+fig2 = plt.figure(figsize=(12,8))
 from mpl_toolkits.mplot3d import Axes3D
-ax2 = fig.add_subplot(212, projection='3d')
+ax2 = fig2.add_subplot(111, projection='3d')
 line, = ax2.plot([], [], [], color='blue', label='MPO orbit')
 point, = ax2.plot([], [], [], 'ro', label='MPO Current Position')
 

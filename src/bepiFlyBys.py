@@ -12,18 +12,13 @@ utc_end   = "Mar 27 2025"
 
 t0 = spice.str2et(utc_start)
 t1 = spice.str2et(utc_end)
-times = np.arange(t0, t1, 2e5)     # ~2.3 days resolution or too slow rn
+times = np.arange(t0, t1, 3600)     # 1 hour steps
 
 # IDs
 planets = {
     "Mercury": "199",
     "Venus":   "299",
     "Earth":   "399"
-}
-colors = {
-    "Mercury": "orange",
-    "Venus":   "green",
-    "Earth":   "blue"
 }
 sc_id = "-121"
 
@@ -42,24 +37,18 @@ distances = {name: np.linalg.norm(pos_sc - positions[name], axis=1)
 
 utc = np.array([spice.et2utc(t, 'C', 0) for t in times])
 
-# Flyby detectioning
-thresholds = {
-    "Mercury": 2.0e7,
-    "Venus":   1.0e7,
-    "Earth":   1.0e6        
-}
+# Flyby detection
+threshold = 50e3 # 50 km
 
-min_under_duration   = 3 * 24 * 3600     # must stay under threshold ≥ 3 days
-min_flyby_separation = 30 * 24 * 3600    # flybys must be ≥ 30 days apart
+min_flyby_separation = 5 * 24 * 3600    # still fine to keep
 
 flybys = {}
 
 # Find flybys
 for planet in planets:
     d = distances[planet]
-    th = thresholds[planet]
 
-    mask = d < th
+    mask = d < threshold
     events = []
     in_event = False
     start = 0
@@ -71,21 +60,14 @@ for planet in planets:
 
         if in_event and (not flag or i == len(mask) - 1):
             end = i
-            duration = times[end] - times[start]
-            if duration > min_under_duration:
-                idx = start + np.argmin(d[start:end])
-                events.append(idx)
+
+            # we removed the duration check here
+            idx = start + np.argmin(d[start:end])
+            events.append(idx)
+
             in_event = False
 
-    # merge events that are too close in time --> end of mercury timing
-    merged = []
-    for idx in events:
-        if not merged:
-            merged.append(idx)
-        elif times[idx] - times[merged[-1]] > min_flyby_separation:
-            merged.append(idx)
-
-    flybys[planet] = merged
+    flybys[planet] = events
 
 # results
 print("\n============================")
@@ -97,7 +79,7 @@ for planet, idxs in flybys.items():
     for idx in idxs:
         print(f"   {utc[idx]}   {distances[planet][idx]/1000:,.0f} km")
 
-# Plots
+# plots
 window = 5 * 24 * 3600
 
 for planet, idxs in flybys.items():
@@ -108,14 +90,20 @@ for planet, idxs in flybys.items():
 
         sel = (times >= tmin) & (times <= tmax)
 
-        plt.figure(figsize=(8,4))
-        plt.plot(utc[sel], d[sel]/1e6, color=colors[planet])
-        plt.scatter([utc[ci]], [d[ci]/1e6], c='red', s=60)
+        plt.figure(figsize=(9,4))
+        plt.plot(utc[sel], d[sel]/1e3)   # km is easier scale
+        plt.scatter([utc[ci]], [d[ci]/1e3], c='red', s=60)
+
+        plt.yscale("log")   # <-- ✨ log y-axis
+
+        # limit how many x labels show
+        plt.xticks(plt.xticks()[0][::12], rotation=25)
+
         plt.title(f"{planet} Flyby #{j+1}\nClosest = {utc[ci]}")
-        plt.ylabel("Distance (million km)")
-        plt.xticks(rotation=25)
-        plt.grid()
+        plt.ylabel("Distance (km, log scale)")
+        plt.grid(True, which='both', ls='--', alpha=0.5)
         plt.tight_layout()
         plt.show()
+
 
 spice.kclear()
